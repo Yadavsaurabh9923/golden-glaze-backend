@@ -23,6 +23,7 @@ class Booking(Base):
     name = Column(String(255), nullable=False)
     status = Column(String(50), default="Pending")
     booking_time = Column(DateTime, default=func.now())
+    date = Column(String(50), default=func.now())
 
     __table_args__ = (
         CheckConstraint("start_time >= 0 AND start_time <= 24", name="check_start_time"),

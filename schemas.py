@@ -13,14 +13,15 @@ class ConfigResponse(BaseModel):
 
 class BookingResponse(BaseModel):
     id: int
-    start_time: int
-    end_time: int
+    start_time: float
+    end_time: float
     amount: float
     email: str
     phone_number: str
     name: str
     status: str
     booking_time: Optional[datetime]
+    date: str
 
     class Config:
         from_attributes = True  # Updated
