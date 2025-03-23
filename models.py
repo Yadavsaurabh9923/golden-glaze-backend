@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, CheckConstraint, func, Float
 from sqlalchemy.orm import relationship
 from database import Base # type: ignore
+from pydantic import BaseModel, EmailStr
 
 class Config(Base):
     __tablename__ = "configs"
@@ -29,6 +30,19 @@ class Booking(Base):
         CheckConstraint("start_time >= 0 AND start_time <= 24", name="check_start_time"),
         CheckConstraint("end_time >= 0 AND end_time <= 24", name="check_end_time"),
     )
+    
+class BookingCreate(BaseModel):
+    start_time: float
+    end_time: float
+    amount: float
+    email: EmailStr
+    phone_number: str
+    name: str
+    status: str = "Pending"
+    date: str = datetime.now().strftime("%Y-%m-%d")
+
+    class Config:
+        from_attributes = True
     
 class Rate(Base):
     __tablename__ = "rates"

@@ -69,8 +69,6 @@ def read_bookings(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
     bookings = db.query(models.Booking).offset(skip).limit(limit).all()
     return bookings
 
-    return configs
-
 @app.get("/booking/{phone_number}")
 def get_booking_by_phone(phone_number: str, db: Session = Depends(get_db)):
     booking = db.query(models.Booking).filter(models.Booking.phone_number == phone_number).first()
@@ -79,6 +77,28 @@ def get_booking_by_phone(phone_number: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Booking not found")
     
     return booking
+
+@app.post("/create_booking/", response_model=schemas.BookingResponse)
+def create_booking(booking: models.BookingCreate, db: Session = Depends(get_db)):
+    if not (0 <= booking.start_time <= 24 and 0 <= booking.end_time <= 24):
+        raise HTTPException(status_code=400, detail="Start time and end time must be between 0 and 24.")
+
+    new_booking = models.Booking(
+        start_time=booking.start_time,
+        end_time=booking.end_time,
+        amount=booking.amount,
+        email=booking.email,
+        phone_number=booking.phone_number,
+        name=booking.name,
+        status=booking.status,
+        date=booking.date,
+    )
+    
+    db.add(new_booking)
+    db.commit()
+    db.refresh(new_booking)
+    
+    return new_booking
 
 # RATES ENDPOINTS -------------------------------------------------------------------------------------
 
