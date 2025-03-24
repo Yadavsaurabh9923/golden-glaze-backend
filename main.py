@@ -69,14 +69,14 @@ def read_bookings(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
     bookings = db.query(models.Booking).offset(skip).limit(limit).all()
     return bookings
 
-@app.get("/booking/{phone_number}")
+@app.get("/booking/{phone_number}", response_model=List[schemas.BookingResponse])
 def get_booking_by_phone(phone_number: str, db: Session = Depends(get_db)):
-    booking = db.query(models.Booking).filter(models.Booking.phone_number == phone_number).first()
-    
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
-    
-    return booking
+    bookings = db.query(models.Booking).filter(models.Booking.phone_number == phone_number).all()
+    if not bookings:
+        raise HTTPException(status_code=404, detail="Bookings not found")
+    return [schemas.BookingResponse.from_orm(b) for b in bookings]
+
+
 
 @app.post("/create_booking/", response_model=schemas.BookingResponse)
 def create_booking(booking: models.BookingCreate, db: Session = Depends(get_db)):
