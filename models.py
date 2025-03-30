@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, CheckConst
 from sqlalchemy.orm import relationship
 from database import Base # type: ignore
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class Config(Base):
     __tablename__ = "configs"
@@ -16,8 +17,8 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     id = Column(Integer, primary_key=True, index=True)
-    start_time = Column(Integer, nullable=False)
-    end_time = Column(Integer, nullable=False)
+    start_time = Column(Float, nullable=False)
+    end_time = Column(Float, nullable=False)
     amount = Column(Float, nullable=False)
     email = Column(String(255), nullable=False)
     phone_number = Column(String(20), nullable=False)
@@ -25,6 +26,7 @@ class Booking(Base):
     status = Column(String(50), default="Pending")
     booking_time = Column(DateTime, default=func.now())
     date = Column(String(50), default=func.now())
+    transaction_id = Column(String(500), nullable=True)
 
     __table_args__ = (
         CheckConstraint("start_time >= 0 AND start_time <= 24", name="check_start_time"),
@@ -40,6 +42,7 @@ class BookingCreate(BaseModel):
     name: str
     status: str = "Pending"
     date: str = datetime.now().strftime("%Y-%m-%d")
+    transaction_id: Optional[str] = None
 
     class Config:
         from_attributes = True

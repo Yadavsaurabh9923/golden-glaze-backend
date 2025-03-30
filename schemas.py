@@ -22,10 +22,24 @@ class BookingResponse(BaseModel):
     status: str
     booking_time: Optional[datetime]
     date: str
+    transaction_id: Optional[str]
 
     class Config:
         from_attributes = True  # Updated
-        
+
+class ConfirmBookingRequest(BaseModel):
+    id: int
+    start_time: float
+    end_time: float
+    amount: float
+    email: str
+    phone_number: str
+    name: str
+    status: str
+    booking_time: str
+    date: str
+    transaction_id: str
+    
 class RateBase(BaseModel):
     session: str
     rate: float

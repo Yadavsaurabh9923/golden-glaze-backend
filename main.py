@@ -2,10 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import re
-
 import models, schemas # type: ignore
 from database import engine, get_db # type: ignore
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum  # Import Mangum
+from sqlalchemy import or_
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+handler = Mangum(app) 
 
 @app.get("/")
 def read_root():
@@ -65,9 +68,10 @@ def update_config_by_name(config_name: str, new_value: str, db: Session = Depend
 # BOOKINGS ENDPOINTS -------------------------------------------------------------------------------------
 
 @app.get("/get_all_bookings/", response_model=List[schemas.BookingResponse])
-def read_bookings(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_bookings(skip: int = 0, limit: int = 10000, db: Session = Depends(get_db)):
     bookings = db.query(models.Booking).offset(skip).limit(limit).all()
     return bookings
+
 
 @app.get("/booking/{phone_number}", response_model=List[schemas.BookingResponse])
 def get_booking_by_phone(phone_number: str, db: Session = Depends(get_db)):
@@ -78,10 +82,30 @@ def get_booking_by_phone(phone_number: str, db: Session = Depends(get_db)):
 
 
 
+
 @app.post("/create_booking/", response_model=schemas.BookingResponse)
 def create_booking(booking: models.BookingCreate, db: Session = Depends(get_db)):
     if not (0 <= booking.start_time <= 24 and 0 <= booking.end_time <= 24):
-        raise HTTPException(status_code=400, detail="Start time and end time must be between 0 and 24.")
+        raise HTTPException(
+            status_code=400, 
+            detail="Start time and end time must be between 0 and 24."
+        )
+
+    # Check if a booking already exists with the same date and
+    # either the same start_time or end_time.
+    existing_booking = db.query(models.Booking).filter(
+        models.Booking.date == booking.date,
+        or_(
+            models.Booking.start_time == booking.start_time,
+            models.Booking.end_time == booking.end_time
+        )
+    ).first()
+    
+    if existing_booking:
+        raise HTTPException(
+            status_code=400, 
+            detail="A booking already exists with the same date and time."
+        )
 
     new_booking = models.Booking(
         start_time=booking.start_time,
@@ -90,15 +114,75 @@ def create_booking(booking: models.BookingCreate, db: Session = Depends(get_db))
         email=booking.email,
         phone_number=booking.phone_number,
         name=booking.name,
-        status=booking.status,
+        status="Hold",  # Force status to Hold
         date=booking.date,
+        transaction_id=booking.transaction_id
     )
     
     db.add(new_booking)
     db.commit()
     db.refresh(new_booking)
-    
     return new_booking
+
+@app.post("/confirm_booking")
+def confirm_booking(booking_request: schemas.ConfirmBookingRequest, db: Session = Depends(get_db)):
+    booking = db.query(models.Booking).filter(
+        models.Booking.id == booking_request.id
+    ).first()
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    # Check if any booking on the same date with status "Confirmed" exists that has either
+    # the same start_time or the same end_time.
+    conflict_booking = db.query(models.Booking).filter(
+        models.Booking.date == booking.date,
+        models.Booking.status == "Confirmed",
+        or_(
+            models.Booking.start_time == booking.start_time,
+            models.Booking.end_time == booking.end_time
+        )
+    ).first()
+
+    if conflict_booking:
+        raise HTTPException(
+            status_code=400, 
+            detail="A booking already exists with the same date and time."
+        )
+
+    # Update status to Confirmed
+    booking.status = "Confirmed"
+    db.commit()
+    db.refresh(booking)
+    
+    return booking
+
+
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_request.id).first()
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    # Update status to Confirmed
+    booking.status = "Confirmed"
+    db.commit()
+    db.refresh(booking)
+    
+    return booking
+
+@app.post("/cancel_booking")
+def cancel_booking(booking_data: schemas.BookingResponse, db: Session = Depends(get_db)):
+    # Query for the booking using the id from the request body.
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_data.id).first()
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.status != "Hold":
+        raise HTTPException(status_code=400, detail="Can only cancel bookings in Hold status")
+    
+    db.delete(booking)
+    db.commit()
+    return {"message": "Booking deleted successfully"}
 
 # RATES ENDPOINTS -------------------------------------------------------------------------------------
 
